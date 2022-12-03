@@ -61,7 +61,8 @@ $config = [
                     'extraPatterns' => [
                         'GET menu' => 'get',
                         'POST menu' => 'post',
-                        'DELETE menu/{id}' => 'remove',
+                        'PATCH menu/{id}' => 'update',
+                        'DELETE menu/{id}' => 'delete',
                     ],
                 ],
             ],

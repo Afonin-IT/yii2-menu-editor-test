@@ -3,6 +3,7 @@
 namespace app\controllers;
 
 use app\models\Menu;
+use Yii;
 use yii\filters\VerbFilter;
 use yii\rest\ActiveController;
 
@@ -24,10 +25,26 @@ class MenuController extends ActiveController
                     'actions' => [
                         'get' => ['GET'],
                         'post' => ['POST'],
+                        'update' => ['PATCH'],
                     ],
                 ],
+                'corsFilter' => [
+                    'class' => \yii\filters\Cors::class,
+                    'cors' => [
+                        'Origin' => ['*'],
+                        'Access-Control-Request-Headers' => ['*'],
+                    ]
+                ]
             ]
         );
+    }
+
+    public function actions()
+    {
+        $actions = parent::actions();
+        unset($actions['update']);
+        unset($actions['delete']);
+        return $actions;
     }
 
     public function actionGet()
@@ -40,16 +57,66 @@ class MenuController extends ActiveController
     {
         $post = $this->request->post();
 
-        $id = $post['id'] ?? null;
-        $position = $post['position'] ?? null;
         $label = $post['label'] ?? null;
-        $link = $post['link'] ?? null;
-        $parent_id = $post['parent_id'] ?? null;
+        $link = $post['link'] ?? "";
 
-        if ($id !== null && $model = Menu::findOne(['id' => $id])) {
-            if ($label) $model->label = $label;
-            if ($link) $model->link = $link;
-            if ($position !== null && $position >= 0) $model->position = $position;
+        if ($label) {
+            $maxPosition = Menu::find()->max('position');
+
+            $model = new Menu();
+            $model->label = $label;
+            $model->link = $link;
+            $model->position = $maxPosition + 1;
+            $model->makeRoot();
+
+            return $model;
+        }
+
+        return null;
+    }
+
+    public function actionUpdate($id)
+    {
+        $post = $this->request->post();
+
+        if ($model = Menu::findOne(['id' => $id])) {
+            $label = $post['label'] ?? $model->label;
+            $link = $post['link'] ?? $model->link;
+            $position = $post['position'] ?? $model->position;
+            $parent_id = $post['parent_id'] ?? null;
+
+            $model->label = $label;
+            $model->link = $link;
+
+            if ($position !== null && $position >= 1) {
+                if ($position < $model->position) {
+                    $sql = <<<SQL
+                        IF :depth = 0 THEN
+                            UPDATE menu SET position = position + 1 WHERE id != :id AND depth = :depth AND position >= :pos AND position < :modelPos;
+                        ELSE
+                            UPDATE menu SET position = position + 1 WHERE id != :id AND tree = :tree AND position >= :pos AND position < :modelPos;
+                        END IF;
+                        SQL;
+                } else if ($position > $model->position) {
+                    $sql = <<<SQL
+                        IF :depth = 0 THEN
+                            UPDATE menu SET position = position - 1 WHERE id != :id AND depth = :depth AND position <= :pos AND position > :modelPos;
+                        ELSE
+                            UPDATE menu SET position = position - 1 WHERE id != :id AND tree = :tree AND position <= :pos AND position > :modelPos;
+                        END IF;
+                        SQL;
+                }
+
+                Yii::$app->db->createCommand($sql)
+                    ->bindValue(':depth', $model->depth)
+                    ->bindValue(':id', $model->id)
+                    ->bindValue(':tree', $model->tree)
+                    ->bindValue(':modelPos', $model->position)
+                    ->bindValue(':pos', $position)->execute();
+
+                $model->position = $position;
+            }
+
             $model->save();
 
             if ($parent_id !== null && $parent_id === 0) {
@@ -63,24 +130,30 @@ class MenuController extends ActiveController
                 }
             }
 
-            return Menu::find()->select(['id', 'label', 'link', 'tree', 'position'])->all();
+            return Menu::find()->all();
         }
-
-        $model = new Menu();
-        $model->label = $label;
-        $model->link = $link;
-        $model->position = $position;
-        $model->makeRoot();
-
-        return Menu::find()->select(['id', 'label', 'link', 'tree', 'position'])->all();
     }
 
-    public function actionRemove($id)
+    public function actionDelete($id)
     {
-        $model = Menu::findOne($id);
+        if($model = Menu::findOne($id)) {
+            $sql = <<<SQL
+                IF :depth = 0 THEN
+                    UPDATE menu SET position = position - 1 WHERE id != :id AND depth = :depth AND position > :modelPos;
+                ELSE
+                    UPDATE menu SET position = position - 1 WHERE id != :id AND tree = :tree AND position > :modelPos;
+                END IF;
+                SQL;
 
-        $model->deleteWithChildren();
+            Yii::$app->db->createCommand($sql)
+                ->bindValue(':id', $model->id)
+                ->bindValue(':depth', $model->depth)
+                ->bindValue(':tree', $model->tree)
+                ->bindValue(':modelPos', $model->position)->execute();
 
-        return Menu::find()->select(['id', 'label', 'link', 'tree', 'position'])->all();
+            $model->deleteWithChildren();
+        }
+
+        return Menu::find()->all();
     }
 }
