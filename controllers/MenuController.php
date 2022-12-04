@@ -18,7 +18,6 @@ class MenuController extends ActiveController
     public function behaviors()
     {
         return array_merge(
-            parent::behaviors(),
             [
                 'verbs' => [
                     'class' => VerbFilter::class,
@@ -26,6 +25,7 @@ class MenuController extends ActiveController
                         'get' => ['GET'],
                         'post' => ['POST'],
                         'update' => ['PATCH'],
+                        'delete' => ['DELETE'],
                     ],
                 ],
                 'corsFilter' => [
@@ -33,9 +33,12 @@ class MenuController extends ActiveController
                     'cors' => [
                         'Origin' => ['*'],
                         'Access-Control-Request-Headers' => ['*'],
-                    ]
+                        'Access-Control-Allow-Headers' => ['*'],
+                        'Access-Control-Request-Method' => ['*']
+                    ],
                 ]
-            ]
+            ],
+            parent::behaviors(),
         );
     }
 
@@ -82,13 +85,14 @@ class MenuController extends ActiveController
         if ($model = Menu::findOne(['id' => $id])) {
             $label = $post['label'] ?? $model->label;
             $link = $post['link'] ?? $model->link;
-            $position = $post['position'] ?? $model->position;
+            $position = $post['position'] ?? null;
             $parent_id = $post['parent_id'] ?? null;
 
             $model->label = $label;
             $model->link = $link;
 
             if ($position !== null && $position >= 1) {
+                $sql = null;
                 if ($position < $model->position) {
                     $sql = <<<SQL
                         IF :depth = 0 THEN

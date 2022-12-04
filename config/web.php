@@ -54,15 +54,16 @@ $config = [
                 [
                     'class' => 'yii\rest\UrlRule',
                     'controller' => 'menu',
+                    'pluralize' => false,
                     'prefix' => 'api',
                     'tokens' => [
                         '{id}' => '<id:\\w+>',
                     ],
                     'extraPatterns' => [
-                        'GET menu' => 'get',
-                        'POST menu' => 'post',
-                        'PATCH menu/{id}' => 'update',
-                        'DELETE menu/{id}' => 'delete',
+                        'GET' => 'get',
+                        'POST' => 'post',
+                        'PATCH {id}' => 'update',
+                        'DELETE {id}' => 'delete',
                     ],
                 ],
             ],
