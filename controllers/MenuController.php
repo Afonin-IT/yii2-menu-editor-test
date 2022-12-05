@@ -64,7 +64,7 @@ class MenuController extends ActiveController
         $link = $post['link'] ?? "";
 
         if ($label) {
-            $maxPosition = Menu::find()->max('position');
+            $maxPosition = Menu::find()->where(['depth' => 0])->max('position');
 
             $model = new Menu();
             $model->label = $label;
@@ -90,6 +90,31 @@ class MenuController extends ActiveController
 
             $model->label = $label;
             $model->link = $link;
+
+            if ($parent_id !== null && $parent_id === 0) {
+                if (!$model->isRoot()) {
+                    $model->makeRoot();
+                }
+
+                $maxPosition = Menu::find()->where(['depth' => 0])->max('position');
+
+                $model->position = $maxPosition + 1;
+
+            } else if ($parent_id > 0) // move node to other root
+            {
+                if ($model->id != $parent_id) {
+                    $parent = Menu::findOne($parent_id);
+
+                    $maxPosition = Menu::find()
+                        ->where('tree = :tree AND id != :id', ['tree' => $parent->tree, 'id' => $parent_id])
+                        ->max('position');
+
+                    $model->position = $maxPosition + 1;
+
+                    $model->appendTo($parent);
+
+                }
+            }
 
             if ($position !== null && $position >= 1) {
                 $sql = null;
@@ -122,17 +147,6 @@ class MenuController extends ActiveController
             }
 
             $model->save();
-
-            if ($parent_id !== null && $parent_id === 0) {
-                if (!$model->isRoot())
-                    $model->makeRoot();
-            } else if ($parent_id > 0) // move node to other root
-            {
-                if ($model->id != $parent_id) {
-                    $parent = Menu::findOne($parent_id);
-                    $model->appendTo($parent);
-                }
-            }
 
             return Menu::find()->all();
         }
