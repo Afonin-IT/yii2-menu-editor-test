@@ -51,6 +51,7 @@ $config = [
             'enableStrictParsing' => true,
             'rules' => [
                 '/' => 'site/index',
+                'editor' => 'menu-editor/index',
                 [
                     'class' => 'yii\rest\UrlRule',
                     'controller' => 'menu',
